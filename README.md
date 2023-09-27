@@ -13,6 +13,8 @@ The biggest differences of this protocol with most well-known lending protocol l
     1. It provides isolated loan pools, which consists of a pair of a collateral and a borrowable.
     2. The entirety of the collateralized and idling underlying tokens can still earn yield instead of being locked.
 
+These attributes allows the user of the protocol to open leveraged position or to trade against tokens while receiving rewards.
+
 CygnusDAO's architecture is divided in two subfolders: core and periphery.
 Core contains the protocol's critical lending and borrowing logic that are to be used via rather low level calls.
 Periphery contains various entry points to ease the usage of the protocol.
@@ -37,6 +39,9 @@ The rest of the contracts: `Hangar18` and the orbiters, are used to help the dep
 ### Periphery
 
 ## Roles and privileges
+* Shuttle admin ?
+* Hangar admin 
+* Periphery admins ?
 
 ### Privileged threats
 
