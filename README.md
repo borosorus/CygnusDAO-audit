@@ -51,22 +51,19 @@ Shuttles also have an extension contract associated to their addresses in the ro
 ## Roles and privileges
 
 #### *Cygnus Admin*
-    Abilities:
+* Abilities:
+    - Set router extensions
+    - Deploy orbiters and board shuttles
+    - Kill Orbiters
+    - Manage DAO Reserves address
+    - Set Cygnus Pillars
+    - Set Cygnus Altair (Router)
+    - Set Cygnus X1 Vault
+    - Sweep tokens of most contracts (except for underlyings)
+    - Set parameters of each shuttle
+    - Set harvester of each shuttle
 
-        - Set router extensions
-        - Deploy orbiters and board shuttles
-        - Kill Orbiters
-        - Manage DAO Reserves address
-        - Set Cygnus Pillars
-        - Set Cygnus Altair (Router)
-        - Set Cygnus X1 Vault
-        - Sweep tokens of most contracts (except for underlyings)
-        - Set parameters of each shuttle
-        - Set harvester of each shuttle
-
-    Threats:
-
-        A malicious Cygnus admin could have access to most protocol funds and user funds allowed to the router.
+**A malicious Cygnus admin could have access to most protocol funds and user funds allowed to the router.**
 
 ## Findings
 
