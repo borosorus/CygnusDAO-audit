@@ -6,21 +6,16 @@ A time-boxed audit doesn't guarantee the absence of security issues.
 
 ### Scope and Versions
 
-    Revision 0
+    Revision 0 (Current)
     ---------------------------------------------------
     periphery: db395115c845165c8b774a308b5d8ef89d1cc900
     core: 9a77e651e64b5392ac8ca831ea30f8d6e85696b4
 
 ## CygnusDAO
 
-At the core, CygnusDAO is a lending protocol allowing users to collateralize one token to borrow another one.
+CygnusDAO is a lending protocol which provides isolated loan pools that consist of a pair of a collateral and a borrowable. The entirety of the collateralized and borrowable underlying tokens can earn yield while idling.
 
-The biggest differences of this protocol with most well-known lending protocol lays in two facts:
-
-    1. It provides isolated loan pools, which consists of a pair of a collateral and a borrowable.
-    2. The entirety of the collateralized and idling underlying tokens can still earn yield instead of being locked.
-
-These attributes allows the user of the protocol to open leveraged position or to trade against tokens while receiving rewards.
+These attributes allows the users of the protocol to access the wide range of uses of a lending protocol, without missing on potential yield opportunities.
 
 CygnusDAO's architecture is divided in two subfolders: core and periphery.
 Core contains the protocol's critical lending and borrowing logic that are to be used via rather low level calls.
@@ -28,7 +23,7 @@ Periphery contains various entry points to ease the usage of the protocol.
 
 ### Core
 
-The main components of core are the `CygnusBorrow` and the `CygnusCollateral` smart contracts. They are always created in pair and linked to each other via a `twinstar` variable that exists on each one of them. A pair of collateral and borrowable is called a `shuttle`.
+The main components of core are the `CygnusBorrow` and the `CygnusCollateral` smart contracts. They are always created in pair and linked to each other via a `twinstar` variable that exists in each one of them. A pair of collateral and borrowable is called a `shuttle`.
 They inherit from both `ERC20` and `CygnusTerminal` which allows to set a principal underlying at creation.
 
 `CygnusTerminal` exposes a `deposit()` and a `redeem()` function to be able to deposit/redeem some underlying against the Cygnus ERC20 that represents either a collateral position or a lending position in the protocol.
@@ -36,27 +31,28 @@ They inherit from both `ERC20` and `CygnusTerminal` which allows to set a princi
 Note that, a collateral will only allow the borrowing of its corresponding borrowable(twinstar), and a borrowable will only be borrowable by collateralizing the underlying of its twinstar.
 
 Both `CygnusBorrow` and `CygnusCollateral` inherit from their corresponding `Void`, `Model`, and `Control` smart contracts.
-* `Void` handles the potential integration of a strategy for the underlying, meaning that this contract will change for each deployment and chain.
+* `Void` handles the potential integration of a strategy for the underlying: this component changes for each deployment and chain.
 * `Model` actually implements the internal logic of the collateral/borrow component.
 * `Control` allows an admin to control most of the parameters of the component.
 
 `CygnusBorrow` and `CygnusCollateral` smart contracts consist of core's higher level functions to make use of the protocol.
 
-The rest of the contracts: `Hangar18` and the orbiters, are used to help the deployment and management of each shuttle.
+The rest of the contracts (`Hangar18` and the orbiters) are used to help the deployment and management of each shuttle.
 
 ### Periphery
 
 The base router contract `CygnusAltair` will be the main entry point for users to interact with the protocol.
 It eases data construction and it handles leverage and liquidation functionalities.
 
-Shuttles also have an extension contract associated to their addresses in a router's variable, these contract will be delegated to from the router when needed. This way, the management part of leveraging/delevaraging transactions is located in those extensions, which handles stablecoin swapping to collateral through different decentralised exchanges.
+Shuttles also have an extension contract associated to their addresses in the router, these contract will be delegated to from the router when needed. This way, the management part of leveraging/delevaraging transactions is located in those extensions, which handles stablecoin swapping to collateral through different decentralised exchanges.
 
-`XHypervisor` is the only available extension in scope.
+`XHypervisor` is the only extension in scope.
 
 ## Roles and privileges
 
 #### *Cygnus Admin*
     Abilities:
+
         - Set router extensions
         - Deploy orbiters and board shuttles
         - Kill Orbiters
@@ -69,9 +65,12 @@ Shuttles also have an extension contract associated to their addresses in a rout
         - Set harvester of each shuttle
 
     Threats:
-        A malicious Cygnus admin would have access to most protocol funds and user funds allowed to the router.//funds shouldnt be allowed, permit2 ?
 
-## Severity Classification
+        A malicious Cygnus admin could have access to most protocol funds and user funds allowed to the router.
+
+## Findings
+
+### Severity Classification
 
 | Severity               | Impact: High | Impact: Medium | Impact: Low |
 | ---------------------- | ------------ | -------------- | ----------- |
@@ -85,7 +84,7 @@ Shuttles also have an extension contract associated to their addresses in a rout
 
 **Severity** - the overall criticality of the risk
 
-## Findings
+### Findings table
 
 | ID   | Title                                                                           | Severity |
 | ---- | ------------------------------------------------------------------------------- | -------- |
@@ -94,6 +93,7 @@ Shuttles also have an extension contract associated to their addresses in a rout
 | [03] | Collateral transfer operation doesn't take the latest borrow balance in account | Medium   |
 | [04] | Extension isn't storage aligned                                                 | Low      |
 | [05] | `trackBorrower()` doesn't take the latest borrow balance in account             | Low      |
+| [06] | `else` case not handled                                                         | Low      |
 
 ### [01] Inflation attack protection can be bypassed [High]
     
@@ -112,7 +112,7 @@ if (totalSupply() == 0) {
 }
 ```
 
-Note however, that there exist one other way to mint shares in the Borrowing contract, `mintReservesPrivate()`.
+Note however, that there exist one special way to mint shares in the Borrowing contract: the `mintReservesPrivate()` function.
 
 An attacker could:
 
@@ -141,7 +141,7 @@ Let's consider an example:
 
 If an LP has 8 decimals, and the borrowing underlying has 6 decimals, `mul(x, y)` would in this case result in an amount denominated with 14 decimals, rounding down to zero all amounts under 4 digits, and rounding down by a large amount values that are greater.
 
-This computation is also present in some view functions: `getBorrowerPosition()` ; `collateralTvlUsd()`
+This computation is also present in some view functions: `getBorrowerPosition()` ; `collateralTvlUsd()`.
 
 ### [03] Collateral transfer operation doesn't take the latest borrow balance in account [MEDIUM]
 
@@ -163,29 +163,61 @@ function _beforeTokenTransfer(address from, address, uint256 amount) internal vi
 
 However, the borrow balance fetched in `canRedeem()` isn't up to date, as interests aren't accrued in the borrowing contract.
 
-### [04] `trackBorrower()` doesn't take the latest borrow balance in account [LOW]
-
-The `trackBorrower()` function should update the rewarder from the `CygnusBorrowModel` smart contract with the current balance of the account. 
-The balance is fetched without accruing interests first, consequently the borrow balance will be outdated.
-
-### [05] Extension isn't storage aligned [LOW]
+### [04] Extension isn't storage aligned [LOW]
 
 `CygnusAltairX` isn't aligned in storage with `CygnusAltair`, and has a function to modify a storage variable: `setName()`.
 
 Delegating to the extension to modify the router's name could have unforeseen consequences on storage variables.
+
+### [05] `trackBorrower()` doesn't take the latest borrow balance in account [LOW]
+
+The `trackBorrower()` function should update the rewarder from the `CygnusBorrowModel` smart contract with the current balance of the account. 
+The balance is fetched without accruing interests first, consequently the borrow balance will be outdated.
+
+### [06] `else` case not handled [LOW]
+
+In the `CygnusAltairX` smart contract, the function `_swapTokensAggregator()` redirects to the right swap function depending on the parameter `dexAggregator`, however, if this parameter doesn't correspond to one of the pre-defined aggregator, the function will return as if it executed successfully.
+Note that `dexAggregator` is a user-defined parameter.
     
 ## Notes
 
 | ID    | Title                                                                           
 | ----- | -------------------------------------------------------------------------------
-| [N01] | Some major state changes do not emit an event                              
+| [N01] | Major state change do not emit an event                              
 | [N02] | Limited front-end provided data validation
-| [N03] | Rewarder has allowance over all funds
-| [N04] | Extensions will always exist in router
-| [N05] | Shuttles can not be killed
+| [N03] | Extensions will always exist in router
+| [N04] | `_previewTotalBalance()` should always return the current balance
+| [N05] | Documentation errors
+| [N06] | Debt Ratio tuning
 
-### [N01] Major state changes do not emit an event
+### [N01] Major state change do not emit an event
+
+Setting a new altair extension in the router doesn't emit an event.
+Emitting events for state changes is a good practice to facilitate monitoring which can improve the effectiveness and the security of the protococol.
+
 ### [N02] Limited front-end provided data validation
-### [N03] Rewarder has allowance over all funds
-### [N04] Extensions will always exist in router
-### [N05] Shuttles cannot be killed
+
+Most user provided data in the router isn't validated.
+A hijacked front-end could make a user interact with the trusted router but with malicious data that could lead to some funds loss.
+
+### [N03] Extensions will always exist in router
+
+When adding an extension to the router, the extension's address is saved as a valid extension in the mapping `isExtension`.
+However, there is no way to remove an extension from this mapping.
+
+### [N04] `_previewTotalBalance()` should always return the current balance
+
+The view function `_previewTotalBalance()` from `CygnusTerminal` should always return the current balance from the underlying's strategy. 
+
+In the case of compound's V3 Comet USDC, the fetched balance is updated with the latest index and works as expected.
+
+However, when dealing with Compound V2 for example, fetching the current balance from a view function doesn't return the current balance but the latest balance. Fetching an outdated balance could potentially break the accounting of core.
+
+### [N05] Documentation errors
+
+* Line 123 in `CygnusBorrowVoid`, mentions Stargate
+* Line 283 in `CygnusBorrowVoid`, mentions Stargate
+
+### [N06] Debt Ratio tuning
+
+The `debtRatio` parameter must be kept far under 100% for liquidations to be profitable and therefore for the protocol's liquidation mechanism to work properly.
