@@ -146,7 +146,7 @@ function mintReservesPrivate(uint256 interestAccumulated) private returns (uint2
 
 The issue lies in the fact that `_convertToShares()` uses `totalAssets()` which has just been increased by the total interests amount before this function was called.
 
-Computing shares for an amount that has already been included in `totalAssets()` will result in a smaller amount of shares than expected.
+Computing shares to mint for an amount that has already been included in `totalAssets()` will result in a smaller amount of shares than expected.
 
 
 ### [03] Collateral value computation may lead to some rounding errors [MEDIUM]
