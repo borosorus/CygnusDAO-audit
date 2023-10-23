@@ -122,10 +122,9 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
 
     /**
      *  @notice Internal function used to calculate the total assets of the borrowable (cash + borrows).
-     *  @notice The mint and redeem functions always use this function to calculate the shares and assets respectively 
-     *          passing `false`. This is done to stop the _convertToShares and _convertToAssets functions from extra 
-     *          SLOADS since both functions accrue interest via the `update` modifier. If called externally via 
-     *          `totalAssets()` then we always simulate accrual.
+     *  @notice The mint and redeem functions always use this function to calculate the shares and assets respectively passing `false`
+     *          This is done to stop the _convertToShares and _convertToAssets functions from extra SLOADS since both functions accrue
+     *          If called externally via `totalAssets()` then we always simulate accrual
      *  @param accrue Whether we should simulate accrual or not.
      *  @return The total underlying assets we own (cash + borrows)
      */
@@ -133,7 +132,7 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
         // Current borrows stored
         uint256 borrows = _totalBorrows;
 
-        // If we should accrue then get the latest borrows (with interest accrued) from the borrow indices.
+        // If we should accrue then get the latest borrows (with interest accrued) from the borrow indices
         if (accrue) (, borrows, , , ) = _borrowIndices();
 
         // Return total cash + total borrows
@@ -142,7 +141,7 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
 
     /**
      *  @notice Get the latest borrow indices
-     *  @return cash The total amount of underlying currently deposited in the strategy 
+     *  @return cash The total amount of underlying currently deposited in the strategy
      *  @return borrows The latest borrows with interest accruals
      *  @return index The latest borrow index with interst accruals
      *  @return timeElapsed The time elapsed since the last accrual timestamp
@@ -162,8 +161,8 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
         // Time elapsed between present timestamp and last accrued period
         timeElapsed = block.timestamp - _accrualTimestamp;
 
-        // Return cash + stored borrows and stored index if no time elapsed since last accrual
-        if (timeElapsed == 0) return (cash, borrows, index, 0, 0);
+        // Return cash, stored borrows and stored index if no time elapsed since last accrual and thus no interest
+        if (timeElapsed == 0 || borrows == 0) return (cash, borrows, index, 0, 0);
 
         // ──────────────────────────────────────────────────────────────────────
         // 1. Get latest per-second BorrowRate with current cash and stored borrows
@@ -238,7 +237,7 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
-    //  Stored variables
+    // Stored variables
 
     /**
      *  @inheritdoc ICygnusBorrowModel
@@ -264,7 +263,7 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
         return _accrualTimestamp;
     }
 
-    //  Borrower/Lender positions
+    // Latest user positions
 
     /**
      *  @dev It is used by CygnusCollateral contract to check a borrower's position
@@ -289,8 +288,6 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
         positionUsd = cygUsdBalance.mulWad(rate);
     }
 
-    //  Pool status
-
     /**
      *  @inheritdoc ICygnusBorrowModel
      */
@@ -299,14 +296,18 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
         return nebula.denominationTokenPrice();
     }
 
+    // Interest rate model
+
     /**
      *  @inheritdoc ICygnusBorrowModel
      */
     function borrowRate() external view override returns (uint256 latestBorrowRate) {
         // Get the current borrows with interest
+        // Calculates the borrow rate with the stored borrows and simulate interest
+        // accrual up to this point.
         (uint256 cash, uint256 borrows, , , ) = _borrowIndices();
 
-        // Latest per second borrow rate
+        // Calculates the latest borrow rate with the new increased borrows
         latestBorrowRate = _latestBorrowRate(cash, borrows);
     }
 
@@ -366,15 +367,17 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
 
     /**
      *  @notice Mints reserves to the DAO based on the interest accumulated.
+     *  @param cash Total cash in the strategy
+     *  @param borrows Total latest borrows with interest accrued
      *  @param interest The total interest we have accrued during this accrual
      *  @return newReserves The amount of CygUSD minted based on `interestAccumulated and the current exchangeRate
      */
-    function mintReservesPrivate(uint256 interest, uint256 cash, uint256 borrows) private returns (uint256 newReserves) {
+    function mintReservesPrivate(uint256 cash, uint256 borrows, uint256 interest) private returns (uint256 newReserves) {
         // Calculate the reserves to keep from the total interest accrued (interest * reserveFactor)
         newReserves = interest.mulWad(reserveFactor);
 
         // Since we mint CygUSD, calculate the amount of CygUSD reserves to mint
-        // Same as `_convertToShares` but use cash from `_borrowIndices` for gas savings
+        // Same as `_convertToShares` but use cash from `_borrowIndices` for gas savings and allow for 0 shares
         uint256 cygUsdReserves = newReserves.fullMulDiv(totalSupply(), (cash + borrows - newReserves));
 
         // Check to mint new reserves
@@ -400,6 +403,9 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
         // Escape if no time has past since last accrue or no borrows and hence no cash (avoid divide by 0 in `mintReserves`)
         if (timeElapsed == 0 || borrows == 0) return;
 
+        // Mint reserves (if any) before updating borrows storage
+        uint256 newReserves = mintReservesPrivate(cash, borrows, interest);
+
         // ──────────────────── Store values: 1 memory slot ─────────────────────
         // Store total borrows with interests
         _totalBorrows = SafeCastLib.toUint144(borrows);
@@ -411,9 +417,6 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
         _accrualTimestamp = SafeCastLib.toUint32(block.timestamp);
 
         // ──────────────────────────────────────────────────────────────────────
-        // Mint reserves (if any)
-        uint256 newReserves = mintReservesPrivate(interest, cash, borrows);
-
         /// @custom:event AccrueInterest
         emit AccrueInterest(cash, borrows, interest, newReserves);
     }
