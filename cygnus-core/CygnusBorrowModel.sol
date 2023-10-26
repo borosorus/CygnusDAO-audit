@@ -376,12 +376,12 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
         // Calculate the reserves to keep from the total interest accrued (interest * reserveFactor)
         newReserves = interest.mulWad(reserveFactor);
 
-        // Since we mint CygUSD, calculate the amount of CygUSD reserves to mint
-        // Same as `_convertToShares` but use cash from `_borrowIndices` for gas savings and allow for 0 shares
-        uint256 cygUsdReserves = newReserves.fullMulDiv(totalSupply(), (cash + borrows - newReserves));
-
         // Check to mint new reserves
-        if (cygUsdReserves > 0) {
+        if (newReserves > 0) {
+            // Since we mint CygUSD, calculate the amount of CygUSD reserves to mint
+            // Same as `_convertToShares` but use cash from `_borrowIndices` for gas savings and allow for 0 shares
+            uint256 cygUsdReserves = newReserves.fullMulDiv(totalSupply(), (cash + borrows - newReserves));
+
             // Get the DAO Reserves current address, DAO reserves is never zero
             address daoReserves = hangar18.daoReserves();
 
@@ -400,8 +400,8 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
         // Get borrow indices
         (uint256 cash, uint256 borrows, uint256 index, uint256 timeElapsed, uint256 interest) = _borrowIndices();
 
-        // Escape if no time has past since last accrue or no borrows and hence no cash (avoid divide by 0 in `mintReserves`)
-        if (timeElapsed == 0 || borrows == 0) return;
+        // Escape if no time has past since last accrue
+        if (timeElapsed == 0) return;
 
         // Mint reserves (if any) before updating borrows storage
         uint256 newReserves = mintReservesPrivate(cash, borrows, interest);

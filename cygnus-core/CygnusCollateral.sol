@@ -199,7 +199,6 @@ contract CygnusCollateral is ICygnusCollateral, CygnusCollateralVoid {
         if (assets == 0) revert CygnusCollateral__CantRedeemZero();
 
         // Compute shares of assets redeemed, rounding up
-        // Total supply and total assets are both cached (totalAssets = totalBalance)
         uint256 shares = assets.fullMulDivUp(totalSupply(), totalAssets());
 
         // Withdraw hook to withdraw from the strategy (if any)
