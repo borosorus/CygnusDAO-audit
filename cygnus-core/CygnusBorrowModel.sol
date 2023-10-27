@@ -162,7 +162,7 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
         timeElapsed = block.timestamp - _accrualTimestamp;
 
         // Return cash, stored borrows and stored index if no time elapsed since last accrual and thus no interest
-        if (timeElapsed == 0 || borrows == 0) return (cash, borrows, index, 0, 0);
+        if (timeElapsed == 0 || borrows == 0) return (cash, borrows, index, timeElapsed, 0);
 
         // ──────────────────────────────────────────────────────────────────────
         // 1. Get latest per-second BorrowRate with current cash and stored borrows
