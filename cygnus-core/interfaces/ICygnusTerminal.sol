@@ -61,6 +61,15 @@ interface ICygnusTerminal is IERC20Permit {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
+     *  @dev Logs when totalBalance syncs with the underlying contract's balanceOf.
+     *
+     *  @param totalBalance Total balance in terms of the underlying
+     *
+     *  @custom:event Sync
+     */
+    event Sync(uint160 totalBalance);
+
+    /**
      *  @dev Logs when CygLP or CygUSD pool tokens are minted
      *
      *  @param sender The address of `CygnusAltair` or the sender of the function call

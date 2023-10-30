@@ -95,25 +95,20 @@ contract CygnusBorrowVoid is ICygnusBorrowVoid, CygnusBorrowModel {
     constructor() {}
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
-            4. MODIFIERS
-        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
-
-    /**
-     *  @notice Overrides the previous modifier from CygnusTerminal to accrue interest before any interaction
-     *  @notice CygnusTerminal override
-     *  @custom:modifier update Accrues interest to total borrows
-     */
-    modifier update() override(CygnusTerminal) {
-        // Accrue interest before any state changing action (ie. Deposit/Redeem/Liquidate/Borrow)
-        _accrueInterest();
-        _;
-    }
-
-    /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             5. CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /*  ────────────────────────────────────────────── Internal ───────────────────────────────────────────────  */
+
+    /**
+     *  @notice Checks the `token` balance of this contract
+     *  @param token The token to view balance of
+     *  @return amount This contract's `token` balance
+     */
+    function _checkBalance(address token) internal view returns (uint256) {
+        // Our balance of `token`
+        return token.balanceOf(address(this));
+    }
 
     /**
      *  @notice Preview total balance from Comet
@@ -257,6 +252,7 @@ contract CygnusBorrowVoid is ICygnusBorrowVoid, CygnusBorrowModel {
     }
 
     /**
+     *  @notice Updates `_totalBalance` increasing amount of underlying liquidity tokens we own
      *  @inheritdoc ICygnusBorrowVoid
      *  @custom:security non-reentrant only-harvester
      */

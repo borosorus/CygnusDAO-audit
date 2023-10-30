@@ -57,6 +57,20 @@ import {IAllowanceTransfer} from "./interfaces/IAllowanceTransfer.sol";
  *  @author CygnusDAO
  *  @notice Contract used to mint Collateral and Borrow tokens. Both Collateral/Borrow arms of Cygnus mint here
  *          to get the vault token (CygUSD for stablecoin deposits and CygLP for Liquidity deposits).
+ *  @notice As the borrowable arm is a stablecoin vault which has assets deposited in strategies, the exchange
+ *          rate for CygUSD should be the cash deposited in the strategy + current borrows. Therefore we use an 
+ *          internal `_totalAssets(bool)` to take into account latest borrows. The bool dictates whether we should 
+ *          simulate accruals or not, helpful for the contract to always display data in real time.
+ *
+ *  @notice Functions overridden in Strategy contracts (CygnusBorrowVoid.sol & CygnusCollateralVoid.sol):
+ *            _afterDeposit        - borrowable/collateral - Deposits underlying into a strategy
+ *            _beforeWithdraw      - borrowable/collateral - Withdraw underlying from a strategy
+ *            _previewTotalBalance - borrowable/collateral - Previews available cash (USDC or LP) without updating storage
+ *
+ *          Functions overriden in the Borrow Model contract (CygnusBorrowModel.sol)
+ *            _totalAssets         - borrowable            - The amount of USDC being borrowed in Borrowable
+ *            update (modifier)    - borrowable            - Interest accruals before any payable actions
+ *
  */
 abstract contract CygnusTerminal is ICygnusTerminal, ERC20, ReentrancyGuard {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -78,6 +92,12 @@ abstract contract CygnusTerminal is ICygnusTerminal, ERC20, ReentrancyGuard {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /*  ────────────────────────────────────────────── Internal ───────────────────────────────────────────────  */
+
+    /**
+     *  @notice Total balance of the underlying (USDC for borrowable, LP's for collateral) updated after
+     *          every state changing action
+     */
+    uint160 internal _totalBalance;
 
     /**
      *  @notice The address of this contract`s opposite arm. For collateral pools, this is the borrowable address.
@@ -138,14 +158,13 @@ abstract contract CygnusTerminal is ICygnusTerminal, ERC20, ReentrancyGuard {
     }
 
     /**
-     *  @notice We mark as virtual to override in borrowable arm and accrue interest before any state changing action.
-     *
-     *  @custom:modifier update Accrues interest in the borrowable arm and stores latest borrows and borrow index
+     *  @notice We override in borrowable arm to accrue interest before any state changing action.
+     *  @custom:modifier update Updates `_totalBalance` in terms of its underlying
      *  @custom:override CygnusBorrowModel
      */
     modifier update() virtual {
-        // Accrue interest
         _;
+        _update();
     }
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -168,19 +187,9 @@ abstract contract CygnusTerminal is ICygnusTerminal, ERC20, ReentrancyGuard {
     /*  ────────────────────────────────────────────── Internal ───────────────────────────────────────────────  */
 
     /**
-     *  @notice Checks the `token` balance of this contract
-     *  @param token The token to view balance of
-     *  @return amount This contract's `token` balance
-     */
-    function _checkBalance(address token) internal view returns (uint256) {
-        // Our balance of `token`
-        return token.balanceOf(address(this));
-    }
-
-    /**
      *  @notice Converts assets to shares
      *  @notice We always pass false to `_totalAssets()` to not get borrow indices as stored variables are in sync.
-     *          This is because this function is only called during deposits/redeems/accruals which accrue interest 
+     *          This is because this function is only called during deposits/redeems/accruals which accrue interest
      *          beforehand with the `update` modifier.
      */
     function _convertToShares(uint256 assets) internal view returns (uint256) {
@@ -202,28 +211,23 @@ abstract contract CygnusTerminal is ICygnusTerminal, ERC20, ReentrancyGuard {
         return _totalSupply == 0 ? shares : shares.fullMulDiv(_totalAssets(false), _totalSupply);
     }
 
-    // Override in strategy contracts
-
     /**
      *  @notice Previews our balance of the underlying asset
-     *  @notice Overridden in BorrowableVoid and CollateralVoid to get the total balance of USDC/LP in the strategy
      *  @custom:override CygnusBorrowVoid
      *  @custom:override CygnusCollateralVoid
      */
     function _previewTotalBalance() internal view virtual returns (uint256) {}
 
-    // Override in borrow model contract
-
     /**
      *  @notice Previews the total assets owned by the vault. Overridden by the borrowable arm.
-     *          For collateral = LPs in the strategy. 
+     *          For collateral = LPs in the strategy.
      *          For borrowable = USDC in the strategy + Borrows.
-     *  @notice The bool argument is to check if we should simulate interest accrual or not. 
+     *  @notice The bool argument is to check if we should simulate interest accrual or not.
      *  @custom:override CygnusBorrowModel
      */
     function _totalAssets(bool) internal view virtual returns (uint256) {
         // The bool is only necessary in Borrowable which is overridden
-        return _previewTotalBalance();
+        return _totalBalance;
     }
 
     /*  ─────────────────────────────────────────────── Public ────────────────────────────────────────────────  */
@@ -246,8 +250,8 @@ abstract contract CygnusTerminal is ICygnusTerminal, ERC20, ReentrancyGuard {
         // Gas savings if non-zero
         uint256 _totalSupply = totalSupply();
 
-        // Borrowable uses internal `_totalAssets` to get the latest borrow indices which takes into account latest borrows
-        return _totalSupply == 0 ? 1e18 : _totalAssets(true).divWad(_totalSupply);
+        // Borrowable uses internal `_totalAssets` to get the borrow indices which takes into account latest borrows
+        return _totalSupply == 0 ? 1e18 : totalAssets().divWad(_totalSupply);
     }
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
@@ -267,7 +271,17 @@ abstract contract CygnusTerminal is ICygnusTerminal, ERC20, ReentrancyGuard {
 
     /*  ────────────────────────────────────────────── Internal ───────────────────────────────────────────────  */
 
-    // Override in strategy contracts
+    /**
+     *  @notice Updates this contract's total balance in terms of its underlying. This is triggered after any
+     *          state-changing function is called.
+     */
+    function _update() internal {
+        // Preview the total assets of stablecoin or LP we own
+        uint256 balance = _previewTotalBalance();
+
+        /// @custom:event Sync
+        emit Sync(_totalBalance = SafeCastLib.toUint160(balance));
+    }
 
     /**
      *  @notice Internal hook for deposits into strategies

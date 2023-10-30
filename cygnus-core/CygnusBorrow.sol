@@ -92,7 +92,7 @@ import {ERC20} from "./ERC20.sol";
  *          The `borrow` function allows anyone to borrow or leverage USD to buy more LP Tokens. If calldata is
  *          passed, then the function calls the `altairBorrow` function on the sender, which should be used to
  *          leverage positions. If there is no calldata, the user can simply borrow instead of leveraging. The
- *          same borrow function is used to repay a loan, by checking the assets received of underlying. 
+ *          same borrow function is used to repay a loan, by checking the totalBalance held of underlying. 
  *          The function also allows anyone to perform a flash loan, as long as the amount repaid is greater
  *          than or equal the borrowed amount.
  *

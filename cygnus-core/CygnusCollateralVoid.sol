@@ -106,6 +106,16 @@ contract CygnusCollateralVoid is ICygnusCollateralVoid, CygnusCollateralModel {
     /*  ────────────────────────────────────────────── Internal ───────────────────────────────────────────────  */
 
     /**
+     *  @notice Checks the `token` balance of this contract
+     *  @param token The token to view balance of
+     *  @return amount This contract's `token` balance
+     */
+    function _checkBalance(address token) internal view returns (uint256) {
+        // Our balance of `token`
+        return token.balanceOf(address(this));
+    }
+
+    /**
      *  @notice Preview total balance from the LP strategy
      *  @notice Cygnus Terminal Override
      *  @inheritdoc CygnusTerminal
@@ -254,10 +264,11 @@ contract CygnusCollateralVoid is ICygnusCollateralVoid, CygnusCollateralModel {
     }
 
     /**
+     *  @notice Updates `_totalBalance` increasing amount of underlying liquidity tokens we own
      *  @inheritdoc ICygnusCollateralVoid
      *  @custom:security non-reentrant only-harvester
      */
-    function reinvestRewards_y7b(uint256 liquidity) external override nonReentrant {
+    function reinvestRewards_y7b(uint256 liquidity) external override nonReentrant update {
         /// @custom:error OnlyHarvesterAllowed Avoid call if msg.sender is not the harvester
         if (msg.sender != harvester) revert CygnusCollateralVoid__OnlyHarvesterAllowed();
 

@@ -115,6 +115,25 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
     }
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
+            4. MODIFIERS
+        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    /**
+     *  @notice Overrides the previous modifier from CygnusTerminal to accrue interest before any interaction
+     *  @notice CygnusTerminal override
+     *  @custom:modifier update Accrues interest to total borrows
+     */
+    modifier update() override(CygnusTerminal) {
+        // Accrue interest before any state changing action (ie. Deposit/Redeem/Borrow/Repay/Liquidate)
+        _accrueInterest();
+        // Update before to prevent deposit spam for yield bearing tokens
+        _update();
+        _;
+        // Update after deposit
+        _update();
+    }
+
+    /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             5. CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
@@ -122,21 +141,27 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
 
     /**
      *  @notice Internal function used to calculate the total assets of the borrowable (cash + borrows).
-     *  @notice The mint and redeem functions always use this function to calculate the shares and assets respectively passing `false`
-     *          This is done to stop the _convertToShares and _convertToAssets functions from extra SLOADS since both functions accrue
-     *          If called externally via `totalAssets()` then we always simulate accrual
+     *  @notice The deposit and redeem functions always use this function to calculate the shares and assets 
+     *          respectively passing `false` as these accrue interest and update via the `update` modifier.
+     *          This is done to stop the _convertToShares and _convertToAssets functions from extra SLOADS.
+     *          If called externally via `totalAssets()` then we always simulate accrual.
      *  @param accrue Whether we should simulate accrual or not.
-     *  @return The total underlying assets we own (cash + borrows)
+     *  @return The total underlying assets we own (total balance + borrows)
      */
     function _totalAssets(bool accrue) internal view override returns (uint256) {
+        // Current cash in strategy
+        uint256 balance = _totalBalance;
+
         // Current borrows stored
         uint256 borrows = _totalBorrows;
 
-        // If we should accrue then get the latest borrows (with interest accrued) from the borrow indices
-        if (accrue) (, borrows, , , ) = _borrowIndices();
+        // If we should accrue then get the latest balance (`_previewTotalBalance`) and borrows with interest accrued 
+        // from the borrow indices. 
+        // `_convertToAssets` and `_convertToShares` always pass false as already accrued.
+        if (accrue) (balance, borrows, , , ) = _borrowIndices();
 
         // Return total cash + total borrows
-        return _previewTotalBalance() + borrows;
+        return balance + borrows;
     }
 
     /**
@@ -162,7 +187,7 @@ contract CygnusBorrowModel is ICygnusBorrowModel, CygnusBorrowControl {
         timeElapsed = block.timestamp - _accrualTimestamp;
 
         // Return cash, stored borrows and stored index if no time elapsed since last accrual and thus no interest
-        if (timeElapsed == 0 || borrows == 0) return (cash, borrows, index, timeElapsed, 0);
+        if (timeElapsed == 0) return (cash, borrows, index, timeElapsed, 0);
 
         // ──────────────────────────────────────────────────────────────────────
         // 1. Get latest per-second BorrowRate with current cash and stored borrows
