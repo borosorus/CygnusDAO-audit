@@ -64,12 +64,12 @@ import {IAllowanceTransfer} from "./interfaces/IAllowanceTransfer.sol";
  *
  *  @notice Functions overridden in Strategy contracts (CygnusBorrowVoid.sol & CygnusCollateralVoid.sol):
  *            _afterDeposit        - borrowable/collateral - Deposits underlying into a strategy
- *            _beforeWithdraw      - borrowable/collateral - Withdraw underlying from a strategy
+ *            _beforeWithdraw      - borrowable/collateral - Withdraws underlying from a strategy
  *            _previewTotalBalance - borrowable/collateral - Previews available cash (USDC or LP) without updating storage
  *
  *          Functions overriden in the Borrow Model contract (CygnusBorrowModel.sol)
- *            _totalAssets         - borrowable            - The amount of USDC being borrowed in Borrowable
- *            update (modifier)    - borrowable            - Interest accruals before any payable actions
+ *            _totalAssets         - borrowable            - Includes borrows in the total assets calculation (cash + borrows)
+ *            update (modifier)    - borrowable            - Includes accruals before any payable actions
  *
  */
 abstract contract CygnusTerminal is ICygnusTerminal, ERC20, ReentrancyGuard {
