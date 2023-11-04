@@ -94,7 +94,7 @@ Shuttles also have an extension contract associated to their addresses in the ro
 | [02] | Reserve shares are not properly computed                                        | Medium   | Fixed  |
 | [03] | Collateral value computation may lead to some rounding errors                   | Medium   | Ack.   |
 | [04] | Collateral transfer operation doesn't take the latest borrow balance in account | Medium   | Fixed  |
-| [05] | Liquidation fee shares amount is not properly computed                          | Medium   | Fixed  |
+| [05] | Liquidation fee shares are not properly computed                                | Medium   | Fixed  |
 | [06] | Extension isn't storage aligned                                                 | Low      | Fixed  |
 | [07] | `else` case not handled                                                         | Low      | Fixed  |
 
@@ -209,7 +209,7 @@ However, the borrow balance fetched in `canRedeem()` isn't up to date, as intere
 
 Interests are now accrued on the borrowable before calling `canRedeem()`.
 
-### [05] Liquidation fee shares amount is not properly computed [MEDIUM] [Fixed]
+### [05] Liquidation fee shares are not properly computed [MEDIUM] [Fixed]
 
 In the `seizeCygLP()` function, a collateral shares amount is computed out of the debt amount that will be repaid:
 
