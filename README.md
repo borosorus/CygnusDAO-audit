@@ -6,10 +6,15 @@ A time-boxed audit doesn't guarantee the absence of security issues.
 
 ### Scope and Versions
 
-    Revision 0 (Current)
+    Revision 0
     ---------------------------------------------------
     periphery: db395115c845165c8b774a308b5d8ef89d1cc900
     core: 9a77e651e64b5392ac8ca831ea30f8d6e85696b4
+
+    Revision 1 (Current)
+    ---------------------------------------------------
+    periphery: c35c413616001e6a76f63a8f96e2bbab8115e2a1
+    core: d82dc261a0cd3bd19ad04622be0b0865f90a8639
 
 ## CygnusDAO
 
@@ -83,18 +88,18 @@ Shuttles also have an extension contract associated to their addresses in the ro
 
 ### Findings table
 
-| ID   | Title                                                                           | Severity |
-| ---- | ------------------------------------------------------------------------------- | -------- |
-| [01] | Inflation attack protection can be bypassed                                     | High     |
-| [02] | Reserve shares are not properly computed                                        | Medium   |
-| [03] | Collateral value computation may lead to some rounding errors                   | Medium   |
-| [04] | Collateral transfer operation doesn't take the latest borrow balance in account | Medium   |
-| [05] | Extension isn't storage aligned                                                 | Low      |
-| [06] | `trackBorrower()` doesn't take the latest borrow balance in account             | Low      |
-| [07] | `else` case not handled                                                         | Low      |
+| ID   | Title                                                                           | Severity | Status |
+| ---- | ------------------------------------------------------------------------------- | -------- | ------ |
+| [01] | Inflation attack protection can be bypassed                                     | High     | Fixed  |
+| [02] | Reserve shares are not properly computed                                        | Medium   | Fixed  |
+| [03] | Collateral value computation may lead to some rounding errors                   | Medium   | Ack.   |
+| [04] | Collateral transfer operation doesn't take the latest borrow balance in account | Medium   | Fixed  |
+| [05] | Liquidation fee shares are not properly computed                                | Medium   | Fixed  |
+| [06] | Extension isn't storage aligned                                                 | Low      | Fixed  |
+| [07] | `else` case not handled                                                         | Low      | Fixed  |
 
-### [01] Inflation attack protection can be bypassed [High]
-    
+### [01] Inflation attack protection can be bypassed [HIGH] [Fixed]
+
 The protection against inflation attacks forces the first user to mint more than 1000 shares. 
     Those first 1000 shares are then sent to the zero address, so that no one controls them:
 
@@ -123,7 +128,11 @@ The inflation attack allows the attacker to steal money from the first depositor
 
 Note that in thise case, the attacker takes more financial risk than for the usual inflation attack, as there already exists 1 wei of shares that isn't in its possession.
 
-### [02] Reserve shares are not properly computed [Medium]
+**[Fixed in revision 1]**
+
+`mintReservesPrivate()` doesn't use `_convertToShares()` anymore to compute shares to mint, but always use `totalSupply()` instead.
+
+### [02] Reserve shares are not properly computed [MEDIUM] [Fixed]
     
 When accumulating borrow interests, a portion of them are collected as reserves for each borrowable.
 The responsible function uses `_convertToShares()` to compute a share amount based on the interests amount:
@@ -148,8 +157,11 @@ The issue lies in the fact that `_convertToShares()` uses `totalAssets()` which 
 
 Computing shares to mint for an amount that has already been included in `totalAssets()` will result in a smaller amount of shares than expected.
 
+**[Fixed in revision 1]**
 
-### [03] Collateral value computation may lead to some rounding errors [MEDIUM]
+`mintReservesPrivate()` now properly computes the shares to mint by integrating users' interests into the division.
+
+### [03] Collateral value computation may lead to some rounding errors [MEDIUM] [Acknowledged]
 
 To compute the value of a collateral amount in the underlying, the collateral contract uses the oracle, which returns a price denoted in the borrowable underlying's decimals.
 
@@ -167,7 +179,13 @@ If an LP has 8 decimals, and the borrowing underlying has 6 decimals, `mul(x, y)
 
 This computation is also present in some view functions: `getBorrowerPosition()` ; `collateralTvlUsd()`.
 
-### [04] Collateral transfer operation doesn't take the latest borrow balance in account [MEDIUM]
+**[Acknowledged]**
+
+CygnusDAO acknowledged the issue and answered:
+    
+    We use different Deployer contracts for each type of collateral. If we deploy collaterals with less than 18 decimals, we will rely on another library.
+
+### [04] Collateral transfer operation doesn't take the latest borrow balance in account [MEDIUM] [Fixed]
 
 When transfering a collateral amount, the collateral contract checks whether the source is allowed to move this collateral with regards to its debt position. 
 
@@ -187,49 +205,86 @@ function _beforeTokenTransfer(address from, address, uint256 amount) internal vi
 
 However, the borrow balance fetched in `canRedeem()` isn't up to date, as interests aren't accrued in the borrowing contract.
 
-### [05] Extension isn't storage aligned [LOW]
+**[Fixed in revision 1]**
+
+Interests are now accrued on the borrowable before calling `canRedeem()`.
+
+### [05] Liquidation fee shares are not properly computed [MEDIUM] [Fixed]
+
+In the `seizeCygLP()` function, a collateral shares amount is computed out of the debt amount that will be repaid:
+
+```
+        ...
+
+        // Get the equivalent of the repaid amount + liquidation bonus, in the underlying LP
+        uint256 seizedLPs = repayAmount.fullMulDiv(liquidationIncentive, lpTokenPrice);
+
+        // Convert the LP amount seized to CygLP shares to seize this amount
+        cygLPAmount = _convertToShares(seizedLPs);
+
+        // Transfer the repaid amount + liq. incentive to the liquidator, escapes canRedeem
+        _transfer(borrower, liquidator, cygLPAmount);
+
+        // Initialize and check if liquidation fee is set
+        uint256 daoFee;
+
+        // Check for protocol fee
+        if (liquidationFee > 0) {
+            // Get the liquidation fee amount that is kept by the protocol
+            daoFee = cygLPAmount.mulWad(liquidationFee);
+        
+        ...
+
+```
+
+Here, the total amount of seized lp should be equal to `repaidValue * (liquidationIncentive + liquidationFee)`.
+
+However note that the `daoFee` is actually computed from `cygLPAmount`, which already contains the liquidation incentive so we rather end up with `(repaidValue * liquidationIncentive) * (1 + liquidationFee)`, consequently seizing more collateral than needed.
+
+**[Fixed in revision 1]**
+
+The dao fee is now computed on the proper amount.
+
+### [06] Extension isn't storage aligned [LOW] [Fixed]
 
 `CygnusAltairX` isn't aligned in storage with `CygnusAltair`, and has a function to modify a storage variable: `setName()`.
 
 Delegating to the extension to modify the router's name could have unforeseen consequences on storage variables.
 
-### [06] `trackBorrower()` doesn't take the latest borrow balance in account [LOW]
+**[Fixed in revision 1]**
 
-The `trackBorrower()` function should update the rewarder from the `CygnusBorrowModel` smart contract with the current balance of the account. 
-The balance is fetched without accruing interests first, consequently the borrow balance will be outdated.
+The `setName()` function was removed, and name variables made constant.
 
-### [07] `else` case not handled [LOW]
+### [07] `else` case not handled [LOW] [Fixed]
 
 In the `CygnusAltairX` smart contract, the function `_swapTokensAggregator()` redirects to the right swap function depending on the parameter `dexAggregator`, however, if this parameter doesn't correspond to one of the pre-defined aggregator, the function will return as if it executed successfully.
 Note that `dexAggregator` is a user-defined parameter.
+
+**[Fixed in revision 1]**
+
+The else case now reverts.
     
 ## Notes
 
 | ID    | Title                                                                           
-| ----- | -------------------------------------------------------------------------------
-| [N01] | Major state change do not emit an event                              
-| [N02] | Limited front-end provided data validation
-| [N03] | Extensions will always exist in router
-| [N04] | `_previewTotalBalance()` should always return the current balance
-| [N05] | Documentation errors
-| [N06] | Debt Ratio tuning
+| ----- | -------------------------------------------------------------------------------                          
+| [N01] | Limited front-end provided data validation
+| [N02] | Extensions will always exist in router
+| [N03] | `_previewTotalBalance()` should always return the current balance
+| [N04] | Debt Ratio tuning
+| [N05] | Reentrancy and external integrations
 
-### [N01] Major state change do not emit an event
-
-Setting a new altair extension in the router doesn't emit an event.
-Emitting events for state changes is a good practice to facilitate monitoring which can improve the effectiveness and the security of the protococol.
-
-### [N02] Limited front-end provided data validation
+### [N01] Limited front-end provided data validation
 
 Most user provided data in the router isn't validated.
 A hijacked front-end could make a user interact with the trusted router but with malicious data that could lead to some funds loss.
 
-### [N03] Extensions will always exist in router
+### [N02] Extensions will always exist in router
 
 When adding an extension to the router, the extension's address is saved as a valid extension in the mapping `isExtension`.
 However, there is no way to remove an extension from this mapping.
 
-### [N04] `_previewTotalBalance()` should always return the current balance
+### [N03] `_previewTotalBalance()` should always return the current balance
 
 The view function `_previewTotalBalance()` from `CygnusTerminal` should always return the current balance from the underlying's strategy. 
 
@@ -237,11 +292,11 @@ In the case of compound's V3 Comet USDC, the fetched balance is updated with the
 
 However, when dealing with Compound V2 for example, fetching the current balance from a view function doesn't return the current balance but the latest balance. Fetching an outdated balance could potentially break the accounting of core.
 
-### [N05] Documentation errors
-
-* Line 123 in `CygnusBorrowVoid`, mentions Stargate
-* Line 283 in `CygnusBorrowVoid`, mentions Stargate
-
-### [N06] Debt Ratio tuning
+### [N04] Debt Ratio tuning
 
 The `debtRatio` parameter must be kept far under 100% for liquidations to be profitable and therefore for the protocol's liquidation mechanism to work properly.
+
+### [N05] Reentrancy and external integrations
+
+The core logic of the protocol allows for some reentrant behavior. Consequently, an external actor (protocol/smart contract) looking at the state of the protocol at any point in time might be tricked.
+External protocols integrating with CygnusDAO should take extra care in securing their implementations against this kind of read-only reentrancies.
