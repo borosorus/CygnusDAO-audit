@@ -1,6 +1,12 @@
 # CygnusDAO Security Review by Borosorus
 
-### Disclaimer
+#### About Borosorus
+
+Borosorus is an independant blockchain security researcher, with a primary focus on the EVM.
+He's trying his best to make the crypto world a safer place.
+You can find out more about him and his work on his twitter [@borosorus](https://twitter.com/borosorus).
+
+#### Disclaimer
 
 A time-boxed audit doesn't guarantee the absence of security issues.
 
