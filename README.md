@@ -12,15 +12,17 @@ A time-boxed audit doesn't guarantee the absence of security issues.
 
 ### Scope and Versions
 
-    Revision 0
-    ---------------------------------------------------
-    periphery: db395115c845165c8b774a308b5d8ef89d1cc900
-    core: 9a77e651e64b5392ac8ca831ea30f8d6e85696b4
+ - **Revision 0**
+   
+    periphery: [db395115c845165c8b774a308b5d8ef89d1cc900](https://github.com/CygnusDAO/periphery/tree/db395115c845165c8b774a308b5d8ef89d1cc900)
+   
+    core: [9a77e651e64b5392ac8ca831ea30f8d6e85696b4](https://github.com/CygnusDAO/core/tree/9a77e651e64b5392ac8ca831ea30f8d6e85696b4)
 
-    Revision 1 (Current)
-    ---------------------------------------------------
-    periphery: c35c413616001e6a76f63a8f96e2bbab8115e2a1
-    core: d82dc261a0cd3bd19ad04622be0b0865f90a8639
+ - **Revision 1 (Current)**
+   
+    periphery: [c35c413616001e6a76f63a8f96e2bbab8115e2a1](https://github.com/CygnusDAO/periphery/tree/c35c413616001e6a76f63a8f96e2bbab8115e2a1)
+   
+    core: [d82dc261a0cd3bd19ad04622be0b0865f90a8639](https://github.com/CygnusDAO/core/tree/d82dc261a0cd3bd19ad04622be0b0865f90a8639)
 
 ## CygnusDAO
 
